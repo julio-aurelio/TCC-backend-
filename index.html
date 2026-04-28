@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualizador 3D de Moléculas - TCC Química</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.128.0/build/three.module.js"
+            }
+        }
+    </script>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .info-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 8px;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 10;
+            font-family: monospace;
+        }
+        .loading {
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="info-panel">
+        🖱️ Clique e arraste para rotacionar | Scroll para zoom | Botão direito para mover
+    </div>
+
+    <!-- Painel lateral -->
+    <div class="fixed top-4 right-4 z-20 w-96 bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl border border-gray-200 p-5 max-h-[95vh] overflow-y-auto">
+        <div class="flex items-center gap-3 mb-5">
+            <div class="w-12 h-12 bg-gradient-to-br from-purple-600 to-blue-600 rounded-full flex items-center justify-center shadow-lg">
+                <span class="text-white text-2xl">⚛️</span>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold text-gray-800">Visualizador 3D</h1>
+                <p class="text-xs text-gray-500">PubChem API | Detecção automática</p>
+            </div>
+        </div>
+
+        <!-- Busca -->
+        <div class="mb-5">
+            <label class="block text-sm font-semibold text-gray-700 mb-2">
+                🔍 Buscar molécula
+            </label>
+            <div class="flex gap-2">
+                <input type="text" id="queryInput" 
+                    class="flex-1 px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm"
+                    placeholder="Ex: C8H18, butano, H2O, benzeno, octano, água"
+                    value="C8H18">
+                <button id="searchBtn" 
+                    class="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white px-5 py-2.5 rounded-xl transition-all duration-200 flex items-center gap-2 shadow-md">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                    Buscar
+                </button>
+            </div>
+            <p class="text-xs text-gray-400 mt-1">✨ Funciona com: fórmulas, nomes em português/inglês e SMILES</p>
+        </div>
+
+        <!-- Status -->
+        <div id="status" class="mb-5 p-3 bg-gray-100 rounded-xl text-sm">
+            <div class="flex items-center gap-2 text-gray-600">
+                <div class="w-2 h-2 bg-green-500 rounded-full"></div>
+                <span>✅ Pronto para buscar</span>
+            </div>
+        </div>
+
+        <!-- Info da molécula -->
+        <div id="infoMolecula" class="hidden mb-5 p-4 bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl border border-purple-200">
+            <div class="text-xs font-semibold text-purple-700 mb-2 flex items-center gap-1">
+                <span>🔬</span> MOLÉCULA ATUAL
+            </div>
+            <div id="infoNome" class="text-base font-bold text-gray-800 mb-1">-</div>
+            <div id="infoApi" class="text-xs text-purple-600 mb-1">📡 API utilizada: -</div>
+            <div id="infoStats" class="text-xs text-gray-600">⚛️ Átomos: - | 🔗 Ligações: -</div>
+        </div>
+
+        <!-- Legenda -->
+        <div class="pt-4 border-t border-gray-200">
+            <div class="text-xs font-semibold text-gray-600 mb-2">🎨 Cores dos átomos (CPK)</div>
+            <div class="flex flex-wrap gap-3 text-xs">
+                <div class="flex items-center gap-1.5"><div class="w-3.5 h-3.5 rounded-full shadow-sm" style="background:#808080"></div><span class="text-gray-600">Carbono</span></div>
+                <div class="flex items-center gap-1.5"><div class="w-3.5 h-3.5 rounded-full shadow-sm" style="background:#f0f0f0; border:1px solid #ccc"></div><span class="text-gray-600">Hidrogênio</span></div>
+                <div class="flex items-center gap-1.5"><div class="w-3.5 h-3.5 rounded-full shadow-sm" style="background:#ff4444"></div><span class="text-gray-600">Oxigênio</span></div>
+                <div class="flex items-center gap-1.5"><div class="w-3.5 h-3.5 rounded-full shadow-sm" style="background:#4488ff"></div><span class="text-gray-600">Nitrogênio</span></div>
+            </div>
+        </div>
+        
+        <!-- Badge de versão -->
+        <div class="mt-4 text-center text-[10px] text-gray-400">
+            🔬 Powered by PubChem API + Sinônimos automáticos
+        </div>
+    </div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'https://unpkg.com/three@0.128.0/examples/jsm/controls/OrbitControls.js';
+
+        // Configuração da cena
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x050510);
+        scene.fog = new THREE.FogExp2(0x050510, 0.006);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(6, 4, 8);
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.autoRotate = false;
+        controls.enableZoom = true;
+        controls.zoomSpeed = 1.5;
+        controls.rotateSpeed = 1.2;
+        controls.panSpeed = 0.8;
+
+        // Luzes
+        const ambientLight = new THREE.AmbientLight(0x404060);
+        scene.add(ambientLight);
+        
+        const mainLight = new THREE.DirectionalLight(0xffffff, 1);
+        mainLight.position.set(5, 10, 7);
+        mainLight.castShadow = true;
+        scene.add(mainLight);
+        
+        const fillLight = new THREE.PointLight(0x4466cc, 0.4);
+        fillLight.position.set(-3, 2, 4);
+        scene.add(fillLight);
+        
+        const backLight = new THREE.PointLight(0xffaa66, 0.3);
+        backLight.position.set(0, 2, -5);
+        scene.add(backLight);
+        
+        const rimLight = new THREE.PointLight(0xff8866, 0.3);
+        rimLight.position.set(2, 3, -4);
+        scene.add(rimLight);
+
+        // Grid
+        const gridHelper = new THREE.GridHelper(20, 20, 0x88aaff, 0x335588);
+        gridHelper.position.y = -2;
+        scene.add(gridHelper);
+
+        // Estrelas
+        const starGeometry = new THREE.BufferGeometry();
+        const starCount = 2000;
+        const starPositions = new Float32Array(starCount * 3);
+        for (let i = 0; i < starCount; i++) {
+            starPositions[i*3] = (Math.random() - 0.5) * 400;
+            starPositions[i*3+1] = (Math.random() - 0.5) * 200;
+            starPositions[i*3+2] = (Math.random() - 0.5) * 100 - 50;
+        }
+        starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+        const starMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.1, transparent: true, opacity: 0.6 });
+        const stars = new THREE.Points(starGeometry, starMaterial);
+        scene.add(stars);
+
+        let currentGroup = null;
+
+        // Configurações visuais
+        const cores = {
+            'C': 0x909090,
+            'H': 0xe8e8e8,
+            'O': 0xff5555,
+            'N': 0x5599ff,
+            'S': 0xffcc55,
+            'Cl': 0x55ff55,
+            'P': 0xffaa44,
+            'default': 0xffaa77
+        };
+        
+        const raios = {
+            'C': 0.35,
+            'H': 0.22,
+            'O': 0.33,
+            'N': 0.31,
+            'P': 0.40,
+            'default': 0.28
+        };
+
+        function desenharMolecula(atoms, bonds) {
+            console.log(`🎨 Desenhando: ${atoms.length} átomos, ${bonds.length} ligações`);
+            
+            if (currentGroup) {
+                scene.remove(currentGroup);
+                if (currentGroup.children) {
+                    currentGroup.children.forEach(child => {
+                        if (child.isMesh) {
+                            if (child.geometry) child.geometry.dispose();
+                            if (child.material) child.material.dispose();
+                        }
+                    });
+                }
+            }
+            
+            if (!atoms || atoms.length === 0) {
+                console.error("Sem átomos para desenhar");
+                return;
+            }
+            
+            currentGroup = new THREE.Group();
+            
+            // Calcular centro
+            let cx = 0, cy = 0, cz = 0;
+            atoms.forEach(a => {
+                cx += a.x;
+                cy += a.y;
+                cz += a.z;
+            });
+            cx /= atoms.length;
+            cy /= atoms.length;
+            cz /= atoms.length;
+            
+            // Desenhar átomos
+            atoms.forEach((atom, idx) => {
+                const elemento = atom.element.charAt(0);
+                const cor = cores[elemento] || cores.default;
+                const raio = raios[elemento] || raios.default;
+                
+                const geometry = new THREE.SphereGeometry(raio, 64, 64);
+                const material = new THREE.MeshStandardMaterial({
+                    color: cor,
+                    roughness: 0.25,
+                    metalness: 0.05,
+                    emissive: elemento === 'H' ? 0x111111 : 0x000000,
+                    emissiveIntensity: 0.05
+                });
+                
+                const sphere = new THREE.Mesh(geometry, material);
+                sphere.position.set(atom.x - cx, atom.y - cy, atom.z - cz);
+                sphere.userData = { element: elemento, index: idx };
+                currentGroup.add(sphere);
+            });
+            
+            // Desenhar ligações
+            if (bonds && bonds.length > 0) {
+                bonds.forEach(bond => {
+                    const atom1 = atoms[bond.atom1];
+                    const atom2 = atoms[bond.atom2];
+                    
+                    if (!atom1 || !atom2) return;
+                    
+                    const pos1 = new THREE.Vector3(atom1.x - cx, atom1.y - cy, atom1.z - cz);
+                    const pos2 = new THREE.Vector3(atom2.x - cx, atom2.y - cy, atom2.z - cz);
+                    
+                    const direction = new THREE.Vector3().subVectors(pos2, pos1);
+                    const length = direction.length();
+                    
+                    let thickness = 0.1;
+                    if (bond.type === 2) thickness = 0.14;
+                    if (bond.type === 3) thickness = 0.18;
+                    
+                    const cylinderGeo = new THREE.CylinderGeometry(thickness, thickness, length, 12);
+                    const cylinderMat = new THREE.MeshStandardMaterial({
+                        color: 0xccbb99,
+                        roughness: 0.4,
+                        metalness: 0.15
+                    });
+                    
+                    const cylinder = new THREE.Mesh(cylinderGeo, cylinderMat);
+                    const center = new THREE.Vector3().addVectors(pos1, pos2).multiplyScalar(0.5);
+                    cylinder.position.copy(center);
+                    cylinder.quaternion.setFromUnitVectors(
+                        new THREE.Vector3(0, 1, 0),
+                        direction.clone().normalize()
+                    );
+                    
+                    currentGroup.add(cylinder);
+                });
+            }
+            
+            scene.add(currentGroup);
+            
+            // Animação de entrada
+            currentGroup.scale.set(0, 0, 0);
+            const startTime = performance.now();
+            function animateScale(now) {
+                const elapsed = now - startTime;
+                const progress = Math.min(1, elapsed / 500);
+                const scale = 1 - Math.pow(1 - progress, 3);
+                if (currentGroup) {
+                    currentGroup.scale.set(scale, scale, scale);
+                }
+                if (progress < 1) {
+                    requestAnimationFrame(animateScale);
+                }
+            }
+            requestAnimationFrame(animateScale);
+        }
+
+        // Animação principal
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // ============================================
+        // FUNÇÃO DE BUSCA PRINCIPAL (RESILIENTE)
+        // ============================================
+        window.buscarMolecula = async (query) => {
+            const statusDiv = document.getElementById('status');
+            const infoDiv = document.getElementById('infoMolecula');
+            
+            statusDiv.innerHTML = `
+                <div class="flex items-center gap-2 text-purple-600">
+                    <div class="w-2 h-2 bg-purple-500 rounded-full loading"></div>
+                    <span class="text-sm">⏳ Buscando "${query}"...</span>
+                </div>
+            `;
+            
+            try {
+                const url = `http://localhost:5000/api/molecule/${encodeURIComponent(query)}`;
+                console.log(`📍 Buscando: ${url}`);
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                console.log("📦 Resposta recebida:", data);
+                
+                // EXTRAI OS DADOS DE FORMA RESILIENTE (aceita diferentes formatos)
+                let atoms = null;
+                let bonds = null;
+                let atomCount = 0;
+                let bondCount = 0;
+                
+                // Tenta diferentes estruturas possíveis
+                if (data.data && data.data.atoms) {
+                    atoms = data.data.atoms;
+                    bonds = data.data.bonds || [];
+                    atomCount = data.data.atom_count || atoms.length;
+                    bondCount = data.data.bond_count || bonds.length;
+                } else if (data.atoms) {
+                    atoms = data.atoms;
+                    bonds = data.bonds || [];
+                    atomCount = data.atom_count || atoms.length;
+                    bondCount = data.bond_count || bonds.length;
+                } else if (data.data && data.data.data && data.data.data.atoms) {
+                    atoms = data.data.data.atoms;
+                    bonds = data.data.data.bonds || [];
+                    atomCount = data.data.data.atom_count || atoms.length;
+                    bondCount = data.data.data.bond_count || bonds.length;
+                }
+                
+                if (atoms && atoms.length > 0) {
+                    desenharMolecula(atoms, bonds);
+                    
+                    const meta = data.meta || {};
+                    const nomeComposto = meta.nome_composto || meta.query_original || query;
+                    const apiUsada = meta.fonte || meta.api_usada || 'PubChem API';
+                    
+                    statusDiv.innerHTML = `
+                        <div class="flex items-center gap-2 text-green-600">
+                            <div class="w-2 h-2 bg-green-500 rounded-full"></div>
+                            <span class="text-sm">✅ ${atomCount} átomos, ${bondCount} ligações</span>
+                        </div>
+                    `;
+                    
+                    infoDiv.classList.remove('hidden');
+                    document.getElementById('infoNome').innerHTML = nomeComposto;
+                    document.getElementById('infoApi').innerHTML = `📡 ${apiUsada}`;
+                    document.getElementById('infoStats').innerHTML = `⚛️ Átomos: ${atomCount} | 🔗 Ligações: ${bondCount}`;
+                    
+                    controls.autoRotate = true;
+                    setTimeout(() => {
+                        controls.autoRotate = false;
+                    }, 2000);
+                } else {
+                    throw new Error(data.error || "Estrutura não encontrada ou sem coordenadas 3D");
+                }
+            } catch (error) {
+                console.error("❌ Erro detalhado:", error);
+                statusDiv.innerHTML = `
+                    <div class="flex items-center gap-2 text-red-600">
+                        <div class="w-2 h-2 bg-red-500 rounded-full"></div>
+                        <span class="text-sm">❌ ${error.message}</span>
+                    </div>
+                `;
+                infoDiv.classList.add('hidden');
+            }
+        };
+        
+        // Event listeners
+        document.getElementById('searchBtn').addEventListener('click', () => {
+            const query = document.getElementById('queryInput').value.trim();
+            if (query) window.buscarMolecula(query);
+        });
+        
+        document.getElementById('queryInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') document.getElementById('searchBtn').click();
+        });
+        
+        // Testar conexão com backend ao carregar
+        async function testBackend() {
+            try {
+                const response = await fetch('http://localhost:5000/api/test');
+                const data = await response.json();
+                console.log("🔌 Backend conectado:", data);
+                document.getElementById('status').innerHTML = `
+                    <div class="flex items-center gap-2 text-green-600">
+                        <div class="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <span class="text-sm">✅ Backend conectado! Pronto para buscar.</span>
+                    </div>
+                `;
+                return true;
+            } catch (error) {
+                console.error("🔌 Backend não está rodando:", error);
+                document.getElementById('status').innerHTML = `
+                    <div class="flex items-center gap-2 text-red-600">
+                        <div class="w-2 h-2 bg-red-500 rounded-full"></div>
+                        <span class="text-sm">⚠️ Backend não está rodando! Execute: python app.py</span>
+                    </div>
+                `;
+                return false;
+            }
+        }
+        
+        // Inicializar
+        setTimeout(async () => {
+            const connected = await testBackend();
+            if (connected) {
+                window.buscarMolecula('C8H18');
+            }
+        }, 500);
+    </script>
+</body>
+</html>
