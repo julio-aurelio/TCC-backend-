@@ -55,6 +55,9 @@
         .legenda-item:hover {
             transform: scale(1.05);
         }
+        .bond-visual {
+            transition: all 0.2s ease;
+        }
     </style>
 </head>
 <body>
@@ -131,21 +134,42 @@
             <div class="text-xs font-semibold text-gray-600 mb-2 flex items-center gap-2">
                 <span>🔗</span> Tipos de Ligações
             </div>
-            <div class="flex gap-3 text-xs">
-                <div class="flex items-center gap-1.5">
-                    <div class="w-5 h-2 rounded-full" style="background:#c0c0c0; box-shadow: 0 0 2px rgba(0,0,0,0.3);"></div>
-                    <span class="text-gray-600">Simples</span>
+            <div class="grid grid-cols-2 gap-2 text-xs">
+                <div class="flex items-center gap-1.5 bond-visual">
+                    <div class="w-6 h-2 rounded-full" style="background:#ff6666; box-shadow: 0 0 4px rgba(255,102,102,0.5);"></div>
+                    <span class="text-gray-600">Simples (Vermelho)</span>
                 </div>
-                <div class="flex items-center gap-1.5">
-                    <div class="w-5 h-2.5 rounded-full" style="background:#ffd700; box-shadow: 0 0 2px rgba(0,0,0,0.3);"></div>
-                    <span class="text-gray-600">Dupla</span>
+                <div class="flex items-center gap-1.5 bond-visual">
+                    <div class="w-6 h-3 rounded-full" style="background:#ffaa44; box-shadow: 0 0 4px rgba(255,170,68,0.5);"></div>
+                    <span class="text-gray-600">Dupla (Laranja)</span>
                 </div>
-                <div class="flex items-center gap-1.5">
-                    <div class="w-5 h-3 rounded-full" style="background:#cd7f32; box-shadow: 0 0 2px rgba(0,0,0,0.3);"></div>
-                    <span class="text-gray-600">Tripla</span>
+                <div class="flex items-center gap-1.5 bond-visual">
+                    <div class="w-6 h-4 rounded-full" style="background:#44ff44; box-shadow: 0 0 4px rgba(68,255,68,0.5);"></div>
+                    <span class="text-gray-600">Tripla (Verde)</span>
+                </div>
+                <div class="flex items-center gap-1.5 bond-visual">
+                    <div class="w-6 h-2.5 rounded-full" style="background:#aa66ff; box-shadow: 0 0 4px rgba(170,102,255,0.5);"></div>
+                    <span class="text-gray-600">Aromática (Roxo)</span>
+                </div>
+                <div class="flex items-center gap-1.5 bond-visual">
+                    <div class="w-6 h-2 rounded-full" style="background:#66ccff; box-shadow: 0 0 4px rgba(102,204,255,0.5);"></div>
+                    <span class="text-gray-600">Coordenada (Azul)</span>
+                </div>
+                <div class="flex items-center gap-1.5 bond-visual">
+                    <div class="w-6 h-1.5 rounded-full" style="background:#ff88ff; box-shadow: 0 0 4px rgba(255,136,255,0.5);"></div>
+                    <span class="text-gray-600">Iônica (Rosa)</span>
                 </div>
             </div>
-            <div class="text-[10px] text-gray-400 mt-2">✨ Ligações mais grossas = maior ordem de ligação</div>
+            <div class="text-[10px] text-gray-400 mt-2">✨ Espessura aumenta com a ordem da ligação</div>
+        </div>
+        
+        <!-- Controles adicionais -->
+        <div class="pt-3 mt-2 border-t border-gray-200">
+            <div class="text-xs font-semibold text-gray-600 mb-2">🎮 Controle de Visualização</div>
+            <div class="flex gap-2">
+                <button id="toggleBonds" class="text-xs px-2 py-1 bg-gray-200 rounded hover:bg-gray-300 transition">Destacar Ligações</button>
+                <button id="resetView" class="text-xs px-2 py-1 bg-gray-200 rounded hover:bg-gray-300 transition">Resetar Câmera</button>
+            </div>
         </div>
         
         <!-- Badge de versão -->
@@ -182,7 +206,7 @@
         controls.rotateSpeed = 1.2;
         controls.panSpeed = 0.8;
 
-        // Luzes melhoradas para destacar as cores
+        // Luzes melhoradas
         const ambientLight = new THREE.AmbientLight(0x404060);
         scene.add(ambientLight);
         
@@ -203,7 +227,6 @@
         rimLight.position.set(2, 3, -4);
         scene.add(rimLight);
         
-        // Luz adicional para frente
         const frontLight = new THREE.PointLight(0x88aaff, 0.3);
         frontLight.position.set(0, 2, 5);
         scene.add(frontLight);
@@ -228,107 +251,57 @@
         scene.add(stars);
 
         let currentGroup = null;
+        let highlightBonds = false;
 
-        // CORES COMPLETAS DA TABELA PERIÓDICA (Padrão CPK)
+        // CORES COMPLETAS DA TABELA PERIÓDICA
         const coresAtomos = {
-            // Metais alcalinos
-            'Li': 0xcc80ff, 'Na': 0xab5cf2, 'K': 0x8f40d4, 'Rb': 0x7a2fb8, 'Cs': 0x6524a0, 'Fr': 0x531c88,
-            
-            // Metais alcalino-terrosos
-            'Be': 0xc2ff99, 'Mg': 0x8dff66, 'Ca': 0x3dff33, 'Sr': 0x00cc33, 'Ba': 0x009933, 'Ra': 0x006622,
-            
-            // Metais de transição
-            'Sc': 0xe6e6e6, 'Ti': 0xbfc2c7, 'V': 0xa6a6ab, 'Cr': 0x8a99c7, 'Mn': 0x9c7ac7,
-            'Fe': 0xcc6600, 'Co': 0xff66ff, 'Ni': 0x66ff66, 'Cu': 0xffaa66, 'Zn': 0x7d7d7d,
-            'Y': 0x94ffff, 'Zr': 0x94e0e0, 'Nb': 0x73c0c0, 'Mo': 0x54b0b0, 'Tc': 0x3b9e9e,
-            'Ru': 0x248f8f, 'Rh': 0x0a7d8c, 'Pd': 0x006985, 'Ag': 0xc0c0c0, 'Cd': 0xffd98f,
-            'Hf': 0x4c5a8c, 'Ta': 0x3a4b7a, 'W': 0x2b3d6b, 'Re': 0x1e2f5a, 'Os': 0x14234a,
-            'Ir': 0x0c1a3a, 'Pt': 0x98f5ff, 'Au': 0xffd123, 'Hg': 0xb8b8d0,
-            
-            // Metais do grupo do boro
-            'B': 0xffb5b5, 'Al': 0xbfa6a6, 'Ga': 0x7c7c7c, 'In': 0x6d5d4d, 'Tl': 0x5e4d3d,
-            
-            // Carbono grupo
-            'C': 0x909090, 'Si': 0x868684, 'Ge': 0x6e6e6e, 'Sn': 0x5e5e5e, 'Pb': 0x4e4e4e,
-            
-            // Nitrogênio grupo
-            'N': 0x3050f8, 'P': 0xff8040, 'As': 0xbd80e3, 'Sb': 0x9e63b8, 'Bi': 0x8d4d9a,
-            
-            // Oxigênio grupo
-            'O': 0xff0d0d, 'S': 0xffcc33, 'Se': 0xffa1a1, 'Te': 0xcc55ff, 'Po': 0xab5cf2,
-            
-            // Halogênios
-            'F': 0x90e050, 'Cl': 0x1ff01f, 'Br': 0x5d5d5d, 'I': 0x940094, 'At': 0x7a007a,
-            
-            // Gases nobres
-            'He': 0xd9ffff, 'Ne': 0xb3e3f5, 'Ar': 0x80d1e3, 'Kr': 0x5cb8d1, 'Xe': 0x3f9ebf, 'Rn': 0x2c85ac,
-            
-            // Lantanídeos
-            'La': 0x70d0ff, 'Ce': 0x99ffcc, 'Pr': 0xa6ffcc, 'Nd': 0xb3ffcc, 'Pm': 0xc0ffcc,
-            'Sm': 0xccffcc, 'Eu': 0xd9ffcc, 'Gd': 0xe6ffcc, 'Tb': 0xf2ffcc, 'Dy': 0xfff2cc,
-            'Ho': 0xffe6cc, 'Er': 0xffd9cc, 'Tm': 0xffcccc, 'Yb': 0xffbfbf, 'Lu': 0xffb3b3,
-            
-            // Actinídeos
-            'Ac': 0x8a99c7, 'Th': 0x6680b3, 'Pa': 0x4d6da1, 'U': 0x335a8f, 'Np': 0x1a477d,
-            'Pu': 0x0a336b, 'Am': 0x062a5a, 'Cm': 0x04204a, 'Bk': 0x031a3a, 'Cf': 0x02142a,
-            'Es': 0x010e1a, 'Fm': 0x01080b, 'Md': 0x010405, 'No': 0x000203, 'Lr': 0x000001,
-            
-            // Íons comuns
-            'H': 0xffffff,
-            
-            // Padrão para elementos não mapeados
-            'default': 0xffaa77
+            'C': 0x909090, 'H': 0xffffff, 'O': 0xff0d0d, 'N': 0x3050f8,
+            'S': 0xffcc33, 'P': 0xff8040, 'F': 0x90e050, 'Cl': 0x1ff01f,
+            'Br': 0x5d5d5d, 'I': 0x940094, 'Na': 0xab5cf2, 'Mg': 0x8dff66,
+            'Ca': 0x3dff33, 'K': 0x8f40d4, 'Fe': 0xcc6600, 'Cu': 0xffaa66,
+            'Zn': 0x7d7d7d, 'Ag': 0xc0c0c0, 'Au': 0xffd123, 'Hg': 0xb8b8d0,
+            'Pb': 0x4e4e4e, 'U': 0x335a8f, 'default': 0xffaa77
         };
         
-        // Raios dos átomos (escala em unidades Three.js)
+        // Raios dos átomos (aumentados para melhor visualização)
         const raiosAtomos = {
-            'H': 0.22, 'He': 0.28,
-            'Li': 0.32, 'Be': 0.30, 'B': 0.35, 'C': 0.35, 'N': 0.33, 'O': 0.33, 'F': 0.31, 'Ne': 0.30,
-            'Na': 0.38, 'Mg': 0.36, 'Al': 0.36, 'Si': 0.36, 'P': 0.35, 'S': 0.34, 'Cl': 0.33, 'Ar': 0.32,
-            'K': 0.45, 'Ca': 0.42, 'Sc': 0.40, 'Ti': 0.38, 'V': 0.37, 'Cr': 0.36, 'Mn': 0.35, 'Fe': 0.35,
-            'Co': 0.34, 'Ni': 0.34, 'Cu': 0.34, 'Zn': 0.34, 'Ga': 0.36, 'Ge': 0.36, 'As': 0.35, 'Se': 0.35,
-            'Br': 0.34, 'Kr': 0.33, 'Rb': 0.48, 'Sr': 0.45, 'Ag': 0.40, 'Cd': 0.40, 'In': 0.40, 'Sn': 0.40,
-            'Sb': 0.40, 'Te': 0.40, 'I': 0.39, 'Xe': 0.38, 'Cs': 0.52, 'Ba': 0.50, 'Au': 0.40, 'Hg': 0.39,
-            'Pb': 0.44, 'Bi': 0.44, 'U': 0.45,
-            'default': 0.28
+            'H': 0.28, 'C': 0.40, 'N': 0.38, 'O': 0.38, 'F': 0.36,
+            'P': 0.40, 'S': 0.39, 'Cl': 0.38, 'Br': 0.39, 'I': 0.40,
+            'Na': 0.44, 'Mg': 0.42, 'Ca': 0.48, 'Fe': 0.44, 'Cu': 0.42,
+            'Zn': 0.42, 'Ag': 0.45, 'Au': 0.45, 'Hg': 0.44, 'Pb': 0.48,
+            'default': 0.35
         };
         
-        // Cores das ligações baseado no tipo
+        // CORES DAS LIGAÇÕES - Mais vibrantes e visíveis
         const coresLigacoes = {
-            1: 0xc0c0c0,  // Simples - Prata
-            2: 0xffd700,  // Dupla - Dourado
-            3: 0xcd7f32,  // Tripla - Bronze
-            4: 0x00ff88,  // Aromática - Verde especial
-            'default': 0xccbb99
+            1: 0xff6666,    // Simples - Vermelho vibrante
+            2: 0xffaa44,    // Dupla - Laranja
+            3: 0x44ff44,    // Tripla - Verde vibrante
+            4: 0xaa66ff,    // Aromática - Roxo
+            5: 0x66ccff,    // Coordenada - Azul
+            6: 0xff88ff,    // Iônica - Rosa
+            'default': 0xff8888
         };
         
-        // Espessura das ligações baseado no tipo
+        // Espessura das ligações (aumentada)
         const espessuraLigacoes = {
-            1: 0.08,   // Simples
-            2: 0.12,   // Dupla
-            3: 0.16,   // Tripla
-            4: 0.10,   // Aromática
-            'default': 0.08
+            1: 0.10,   // Simples - mais grossa
+            2: 0.14,   // Dupla
+            3: 0.18,   // Tripla
+            4: 0.12,   // Aromática
+            5: 0.10,   // Coordenada
+            6: 0.08,   // Iônica
+            'default': 0.10
         };
         
-        // Função para obter cor do átomo (com fallback)
-        function getCorAtomo(elemento, elementoCompleto) {
-            // Tenta primeiro com elemento completo (ex: Mg, Cl)
-            if (coresAtomos[elementoCompleto]) {
-                return coresAtomos[elementoCompleto];
-            }
-            // Tenta com a primeira letra (ex: C, H, O)
-            if (coresAtomos[elemento]) {
-                return coresAtomos[elemento];
-            }
-            return coresAtomos.default;
+        function getCorAtomo(elemento) {
+            const elem = elemento.charAt(0).toUpperCase() + elemento.slice(1).toLowerCase();
+            return coresAtomos[elem] || coresAtomos[elemento.charAt(0)] || coresAtomos.default;
         }
         
-        // Função para obter raio do átomo
-        function getRaioAtomo(elemento, elementoCompleto) {
-            if (raiosAtomos[elementoCompleto]) return raiosAtomos[elementoCompleto];
-            if (raiosAtomos[elemento]) return raiosAtomos[elemento];
-            return raiosAtomos.default;
+        function getRaioAtomo(elemento) {
+            const elem = elemento.charAt(0).toUpperCase() + elemento.slice(1).toLowerCase();
+            return raiosAtomos[elem] || raiosAtomos[elemento.charAt(0)] || raiosAtomos.default;
         }
 
         function desenharMolecula(atoms, bonds) {
@@ -353,7 +326,7 @@
             
             currentGroup = new THREE.Group();
             
-            // Calcular centro para centralizar a molécula
+            // Calcular centro
             let cx = 0, cy = 0, cz = 0;
             atoms.forEach(a => {
                 cx += a.x;
@@ -364,10 +337,9 @@
             cy /= atoms.length;
             cz /= atoms.length;
             
-            // Criar um grupo para as ligações (vai atrás dos átomos)
             const bondGroup = new THREE.Group();
             
-            // Desenhar ligações PRIMEIRO (para ficarem atrás dos átomos)
+            // DESENHAR LIGAÇÕES - Versão melhorada
             if (bonds && bonds.length > 0) {
                 console.log(`🔗 Desenhando ${bonds.length} ligações`);
                 
@@ -376,7 +348,7 @@
                     const atom2 = atoms[bond.atom2];
                     
                     if (!atom1 || !atom2) {
-                        console.warn(`Ligação ${idx} com átomos inválidos: ${bond.atom1}, ${bond.atom2}`);
+                        console.warn(`Ligação ${idx} inválida`);
                         return;
                     }
                     
@@ -386,82 +358,127 @@
                     const direction = new THREE.Vector3().subVectors(pos2, pos1);
                     const length = direction.length();
                     
-                    // Determina tipo da ligação (1=símples, 2=dupla, 3=tripla)
                     const bondType = bond.type || 1;
                     const thickness = espessuraLigacoes[bondType] || espessuraLigacoes.default;
                     const bondColor = coresLigacoes[bondType] || coresLigacoes.default;
                     
-                    // Para ligações duplas e triplas, desenhamos múltiplos cilindros
-                    const numCylinders = bondType === 3 ? 3 : (bondType === 2 ? 2 : 1);
+                    // Para ligações muito curtas, pular (evita artefatos)
+                    if (length < 0.1) return;
                     
-                    if (numCylinders === 1) {
-                        // Ligação simples
-                        const cylinderGeo = new THREE.CylinderGeometry(thickness, thickness, length, 12);
-                        const cylinderMat = new THREE.MeshStandardMaterial({
-                            color: bondColor,
-                            roughness: 0.3,
-                            metalness: 0.4,
-                            emissive: 0x000000
-                        });
-                        const cylinder = new THREE.Mesh(cylinderGeo, cylinderMat);
-                        const center = new THREE.Vector3().addVectors(pos1, pos2).multiplyScalar(0.5);
-                        cylinder.position.copy(center);
-                        cylinder.quaternion.setFromUnitVectors(
-                            new THREE.Vector3(0, 1, 0),
-                            direction.clone().normalize()
-                        );
-                        bondGroup.add(cylinder);
-                    } else {
-                        // Ligação dupla ou tripla - cria cilindros paralelos
-                        const offset = bondType === 2 ? 0.08 : 0.12;
-                        const perp1 = new THREE.Vector3(1, 0, 0);
-                        const perp2 = new THREE.Vector3(0, 1, 0);
-                        const axis = direction.clone().normalize();
+                    const axis = direction.clone().normalize();
+                    
+                    // Método melhorado para criar cilindros
+                    const cylinderGeo = new THREE.CylinderGeometry(thickness, thickness, length, 16);
+                    const cylinderMat = new THREE.MeshStandardMaterial({
+                        color: bondColor,
+                        roughness: 0.2,
+                        metalness: 0.6,
+                        emissive: highlightBonds ? bondColor : 0x000000,
+                        emissiveIntensity: highlightBonds ? 0.3 : 0
+                    });
+                    
+                    const cylinder = new THREE.Mesh(cylinderGeo, cylinderMat);
+                    const center = new THREE.Vector3().addVectors(pos1, pos2).multiplyScalar(0.5);
+                    cylinder.position.copy(center);
+                    
+                    // Rotaciona o cilindro para alinhar com a direção
+                    const quaternion = new THREE.Quaternion().setFromUnitVectors(
+                        new THREE.Vector3(0, 1, 0),
+                        axis
+                    );
+                    cylinder.quaternion.copy(quaternion);
+                    
+                    bondGroup.add(cylinder);
+                    
+                    // Para ligações duplas/triplas, adicionar cilindros extras
+                    if (bondType === 2 || bondType === 3) {
+                        const numExtras = bondType === 3 ? 2 : 1;
+                        const offsetDist = 0.12;
                         
-                        // Encontra um vetor perpendicular
-                        let side = new THREE.Vector3(1, 0, 0);
-                        if (Math.abs(axis.dot(side)) > 0.9999) {
-                            side = new THREE.Vector3(0, 1, 0);
+                        // Encontra vetores perpendiculares
+                        let perp1 = new THREE.Vector3(1, 0, 0);
+                        if (Math.abs(axis.dot(perp1)) > 0.99) {
+                            perp1 = new THREE.Vector3(0, 1, 0);
                         }
-                        const perp = new THREE.Vector3().crossVectors(axis, side).normalize();
+                        const perpAxis = new THREE.Vector3().crossVectors(axis, perp1).normalize();
+                        const perp2 = new THREE.Vector3().crossVectors(perpAxis, axis).normalize();
                         
-                        for (let i = 0; i < numCylinders; i++) {
-                            const cylinderGeo = new THREE.CylinderGeometry(thickness * 0.7, thickness * 0.7, length, 12);
-                            const cylinderMat = new THREE.MeshStandardMaterial({
+                        for (let i = 0; i < numExtras; i++) {
+                            const offset = (i === 0 ? offsetDist : -offsetDist);
+                            const offsetVec = perp2.clone().multiplyScalar(offset);
+                            
+                            const extraGeo = new THREE.CylinderGeometry(thickness * 0.8, thickness * 0.8, length, 16);
+                            const extraMat = new THREE.MeshStandardMaterial({
                                 color: bondColor,
-                                roughness: 0.3,
-                                metalness: 0.4
+                                roughness: 0.2,
+                                metalness: 0.6
                             });
-                            const cylinder = new THREE.Mesh(cylinderGeo, cylinderMat);
-                            const center = new THREE.Vector3().addVectors(pos1, pos2).multiplyScalar(0.5);
-                            
-                            // Offset para ligações múltiplas
-                            const offsetDist = (i - (numCylinders - 1) / 2) * offset;
-                            const offsetVec = perp.clone().multiplyScalar(offsetDist);
-                            center.add(offsetVec);
-                            
-                            cylinder.position.copy(center);
-                            cylinder.quaternion.setFromUnitVectors(
-                                new THREE.Vector3(0, 1, 0),
-                                axis
-                            );
-                            bondGroup.add(cylinder);
+                            const extraCyl = new THREE.Mesh(extraGeo, extraMat);
+                            const extraCenter = center.clone().add(offsetVec);
+                            extraCyl.position.copy(extraCenter);
+                            extraCyl.quaternion.copy(quaternion);
+                            bondGroup.add(extraCyl);
                         }
                     }
                 });
             } else {
-                console.warn("⚠️ Nenhuma ligação encontrada!");
+                console.warn("⚠️ Nenhuma ligação encontrada! Gerando automaticamente...");
+                // Gerar ligações automaticamente baseado na distância
+                const autoBonds = [];
+                for (let i = 0; i < atoms.length; i++) {
+                    for (let j = i + 1; j < atoms.length; j++) {
+                        const dx = atoms[i].x - atoms[j].x;
+                        const dy = atoms[i].y - atoms[j].y;
+                        const dz = atoms[i].z - atoms[j].z;
+                        const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+                        if (dist < 1.8) {
+                            autoBonds.push({ atom1: i, atom2: j, type: 1 });
+                        }
+                    }
+                }
+                console.log(`🔗 Geradas ${autoBonds.length} ligações automáticas`);
+                
+                // Desenhar ligações automáticas
+                autoBonds.forEach(bond => {
+                    const atom1 = atoms[bond.atom1];
+                    const atom2 = atoms[bond.atom2];
+                    
+                    const pos1 = new THREE.Vector3(atom1.x - cx, atom1.y - cy, atom1.z - cz);
+                    const pos2 = new THREE.Vector3(atom2.x - cx, atom2.y - cy, atom2.z - cz);
+                    
+                    const direction = new THREE.Vector3().subVectors(pos2, pos1);
+                    const length = direction.length();
+                    
+                    if (length < 0.1) return;
+                    
+                    const cylinderGeo = new THREE.CylinderGeometry(0.10, 0.10, length, 16);
+                    const cylinderMat = new THREE.MeshStandardMaterial({
+                        color: 0xff6666,
+                        roughness: 0.2,
+                        metalness: 0.6
+                    });
+                    const cylinder = new THREE.Mesh(cylinderGeo, cylinderMat);
+                    const center = new THREE.Vector3().addVectors(pos1, pos2).multiplyScalar(0.5);
+                    cylinder.position.copy(center);
+                    
+                    const axis = direction.clone().normalize();
+                    const quaternion = new THREE.Quaternion().setFromUnitVectors(
+                        new THREE.Vector3(0, 1, 0),
+                        axis
+                    );
+                    cylinder.quaternion.copy(quaternion);
+                    
+                    bondGroup.add(cylinder);
+                });
             }
             
-            // Adicionar grupo de ligações primeiro
             currentGroup.add(bondGroup);
             
-            // Desenhar átomos DEPOIS (para ficarem na frente)
+            // Desenhar átomos
             atoms.forEach((atom, idx) => {
-                const elemento = atom.element.charAt(0);
-                const elementoCompleto = atom.element; // Ex: Mg, Cl, C
-                const cor = getCorAtomo(elemento, elementoCompleto);
-                const raio = getRaioAtomo(elemento, elementoCompleto);
+                const elemento = atom.element;
+                const cor = getCorAtomo(elemento);
+                const raio = getRaioAtomo(elemento);
                 
                 const geometry = new THREE.SphereGeometry(raio, 64, 64);
                 const material = new THREE.MeshStandardMaterial({
@@ -470,18 +487,18 @@
                     metalness: 0.1,
                     emissive: elemento === 'H' ? 0x111111 : 0x000000,
                     emissiveIntensity: 0.05,
-                    shininess: 60
+                    shininess: 80
                 });
                 
                 const sphere = new THREE.Mesh(geometry, material);
                 sphere.position.set(atom.x - cx, atom.y - cy, atom.z - cz);
-                sphere.userData = { element: elemento, fullElement: elementoCompleto, index: idx };
+                sphere.userData = { element: elemento, index: idx };
                 currentGroup.add(sphere);
             });
             
             scene.add(currentGroup);
             
-            // Animação de entrada mais suave
+            // Animação de entrada
             currentGroup.scale.set(0, 0, 0);
             const startTime = performance.now();
             function animateScale(now) {
@@ -498,30 +515,24 @@
             requestAnimationFrame(animateScale);
         }
 
-        // Função para preencher a legenda de cores
+        // Preencher legenda
         function preencherLegenda() {
             const legendContainer = document.getElementById('legendaCores');
             const elementosPrincipais = [
-                { nome: 'Hidrogênio (H)', cor: '#ffffff', elemento: 'H' },
-                { nome: 'Carbono (C)', cor: '#909090', elemento: 'C' },
-                { nome: 'Nitrogênio (N)', cor: '#3050f8', elemento: 'N' },
-                { nome: 'Oxigênio (O)', cor: '#ff0d0d', elemento: 'O' },
-                { nome: 'Flúor (F)', cor: '#90e050', elemento: 'F' },
-                { nome: 'Sódio (Na)', cor: '#ab5cf2', elemento: 'Na' },
-                { nome: 'Magnésio (Mg)', cor: '#8dff66', elemento: 'Mg' },
-                { nome: 'Enxofre (S)', cor: '#ffcc33', elemento: 'S' },
-                { nome: 'Cloro (Cl)', cor: '#1ff01f', elemento: 'Cl' },
-                { nome: 'Potássio (K)', cor: '#8f40d4', elemento: 'K' },
-                { nome: 'Cálcio (Ca)', cor: '#3dff33', elemento: 'Ca' },
-                { nome: 'Ferro (Fe)', cor: '#cc6600', elemento: 'Fe' },
-                { nome: 'Cobre (Cu)', cor: '#ffaa66', elemento: 'Cu' },
-                { nome: 'Zinco (Zn)', cor: '#7d7d7d', elemento: 'Zn' },
-                { nome: 'Bromo (Br)', cor: '#5d5d5d', elemento: 'Br' },
-                { nome: 'Prata (Ag)', cor: '#c0c0c0', elemento: 'Ag' },
-                { nome: 'Ouro (Au)', cor: '#ffd123', elemento: 'Au' },
-                { nome: 'Mercúrio (Hg)', cor: '#b8b8d0', elemento: 'Hg' },
-                { nome: 'Chumbo (Pb)', cor: '#4e4e4e', elemento: 'Pb' },
-                { nome: 'Urânio (U)', cor: '#335a8f', elemento: 'U' }
+                { nome: 'Hidrogênio (H)', cor: '#ffffff' },
+                { nome: 'Carbono (C)', cor: '#909090' },
+                { nome: 'Nitrogênio (N)', cor: '#3050f8' },
+                { nome: 'Oxigênio (O)', cor: '#ff0d0d' },
+                { nome: 'Flúor (F)', cor: '#90e050' },
+                { nome: 'Sódio (Na)', cor: '#ab5cf2' },
+                { nome: 'Magnésio (Mg)', cor: '#8dff66' },
+                { nome: 'Enxofre (S)', cor: '#ffcc33' },
+                { nome: 'Cloro (Cl)', cor: '#1ff01f' },
+                { nome: 'Potássio (K)', cor: '#8f40d4' },
+                { nome: 'Cálcio (Ca)', cor: '#3dff33' },
+                { nome: 'Ferro (Fe)', cor: '#cc6600' },
+                { nome: 'Cobre (Cu)', cor: '#ffaa66' },
+                { nome: 'Zinco (Zn)', cor: '#7d7d7d' }
             ];
             
             legendContainer.innerHTML = elementosPrincipais.map(elem => `
@@ -546,9 +557,25 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
 
-        // ============================================
-        // FUNÇÃO DE BUSCA PRINCIPAL
-        // ============================================
+        // Controles
+        document.getElementById('toggleBonds').addEventListener('click', () => {
+            highlightBonds = !highlightBonds;
+            const btn = document.getElementById('toggleBonds');
+            btn.textContent = highlightBonds ? 'Normal' : 'Destacar Ligações';
+            btn.classList.toggle('bg-yellow-200', highlightBonds);
+            // Recarregar molécula atual
+            const currentQuery = document.getElementById('queryInput').value;
+            if (currentQuery) window.buscarMolecula(currentQuery);
+        });
+        
+        document.getElementById('resetView').addEventListener('click', () => {
+            camera.position.set(6, 4, 8);
+            camera.lookAt(0, 0, 0);
+            controls.target.set(0, 0, 0);
+            controls.update();
+        });
+
+        // Função de busca
         window.buscarMolecula = async (query) => {
             const statusDiv = document.getElementById('status');
             const infoDiv = document.getElementById('infoMolecula');
@@ -560,78 +587,71 @@
                 </div>
             `;
             
-            // Tenta múltiplos endpoints
-            const endpoints = [
-                `http://localhost:5000/api/molecule/${encodeURIComponent(query)}`,
-                `http://127.0.0.1:5000/api/molecule/${encodeURIComponent(query)}`
-            ];
-            
-            let lastError = null;
-            
-            for (const url of endpoints) {
-                try {
-                    console.log(`📍 Buscando: ${url}`);
-                    const response = await fetch(url);
-                    const data = await response.json();
-                    
-                    console.log("📦 Resposta recebida:", data);
-                    
-                    let atoms = null;
-                    let bonds = null;
-                    let atomCount = 0;
-                    let bondCount = 0;
-                    
-                    if (data.data && data.data.atoms) {
-                        atoms = data.data.atoms;
-                        bonds = data.data.bonds || [];
-                        atomCount = data.data.atom_count || atoms.length;
-                        bondCount = data.data.bond_count || bonds.length;
-                    } else if (data.atoms) {
-                        atoms = data.atoms;
-                        bonds = data.bonds || [];
-                        atomCount = data.atom_count || atoms.length;
-                        bondCount = data.bond_count || bonds.length;
-                    }
-                    
-                    if (atoms && atoms.length > 0) {
-                        desenharMolecula(atoms, bonds);
-                        
-                        const meta = data.meta || {};
-                        const nomeComposto = meta.query_original || query;
-                        
-                        statusDiv.innerHTML = `
-                            <div class="flex items-center gap-2 text-green-600">
-                                <div class="w-2 h-2 bg-green-500 rounded-full"></div>
-                                <span class="text-sm">✅ ${atomCount} átomos, ${bondCount} ligações</span>
-                            </div>
-                        `;
-                        
-                        infoDiv.classList.remove('hidden');
-                        document.getElementById('infoNome').innerHTML = nomeComposto;
-                        document.getElementById('infoStats').innerHTML = `⚛️ Átomos: ${atomCount} | 🔗 Ligações: ${bondCount}`;
-                        document.getElementById('infoLigacoes').innerHTML = `🎨 Ligações: ${bonds.filter(b => b.type === 1).length} simples | ${bonds.filter(b => b.type === 2).length} duplas | ${bonds.filter(b => b.type === 3).length} triplas`;
-                        
-                        controls.autoRotate = true;
-                        setTimeout(() => {
-                            controls.autoRotate = false;
-                        }, 2000);
-                        return;
-                    } else {
-                        throw new Error(data.error || "Estrutura não encontrada");
-                    }
-                } catch (error) {
-                    console.log(`❌ Falha no endpoint ${url}:`, error);
-                    lastError = error;
+            try {
+                const url = `http://localhost:5000/api/molecule/${encodeURIComponent(query)}`;
+                console.log(`📍 Buscando: ${url}`);
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                console.log("📦 Resposta recebida:", data);
+                
+                let atoms = null;
+                let bonds = null;
+                let atomCount = 0;
+                let bondCount = 0;
+                
+                if (data.data && data.data.atoms) {
+                    atoms = data.data.atoms;
+                    bonds = data.data.bonds || [];
+                    atomCount = data.data.atom_count || atoms.length;
+                    bondCount = data.data.bond_count || bonds.length;
+                } else if (data.atoms) {
+                    atoms = data.atoms;
+                    bonds = data.bonds || [];
+                    atomCount = data.atom_count || atoms.length;
+                    bondCount = data.bond_count || bonds.length;
                 }
+                
+                if (atoms && atoms.length > 0) {
+                    desenharMolecula(atoms, bonds);
+                    
+                    const meta = data.meta || {};
+                    const nomeComposto = meta.query_original || query;
+                    
+                    statusDiv.innerHTML = `
+                        <div class="flex items-center gap-2 text-green-600">
+                            <div class="w-2 h-2 bg-green-500 rounded-full"></div>
+                            <span class="text-sm">✅ ${atomCount} átomos, ${bondCount} ligações</span>
+                        </div>
+                    `;
+                    
+                    infoDiv.classList.remove('hidden');
+                    document.getElementById('infoNome').innerHTML = nomeComposto;
+                    document.getElementById('infoStats').innerHTML = `⚛️ Átomos: ${atomCount} | 🔗 Ligações: ${bondCount}`;
+                    
+                    const simples = bonds.filter(b => b.type === 1 || !b.type).length;
+                    const duplas = bonds.filter(b => b.type === 2).length;
+                    const triplas = bonds.filter(b => b.type === 3).length;
+                    document.getElementById('infoLigacoes').innerHTML = `🎨 Ligações: ${simples} simples | ${duplas} duplas | ${triplas} triplas`;
+                    
+                    controls.autoRotate = true;
+                    setTimeout(() => {
+                        controls.autoRotate = false;
+                    }, 2000);
+                } else {
+                    throw new Error(data.error || "Estrutura não encontrada");
+                }
+            } catch (error) {
+                console.error("❌ Erro:", error);
+                statusDiv.innerHTML = `
+                    <div class="flex items-center gap-2 text-red-600">
+                        <div class="w-2 h-2 bg-red-500 rounded-full"></div>
+                        <span class="text-sm">❌ ${error.message}</span>
+                    </div>
+                `;
+                infoDiv.classList.add('hidden');
             }
-            
-            statusDiv.innerHTML = `
-                <div class="flex items-center gap-2 text-red-600">
-                    <div class="w-2 h-2 bg-red-500 rounded-full"></div>
-                    <span class="text-sm">❌ Erro: ${lastError?.message || 'Molécula não encontrada'}</span>
-                </div>
-            `;
-            infoDiv.classList.add('hidden');
         };
         
         // Event listeners
@@ -644,7 +664,7 @@
             if (e.key === 'Enter') document.getElementById('searchBtn').click();
         });
         
-        // Testar conexão com backend
+        // Testar conexão
         async function testBackend() {
             try {
                 const response = await fetch('http://localhost:5000/api/test');
