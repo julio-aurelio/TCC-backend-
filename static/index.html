@@ -588,7 +588,7 @@
             `;
             
             try {
-                const url = `http://localhost:5000/api/molecule/${encodeURIComponent(query)}`;
+                const url = `/api/molecule/${encodeURIComponent(query)}`;
                 console.log(`📍 Buscando: ${url}`);
                 
                 const response = await fetch(url);
