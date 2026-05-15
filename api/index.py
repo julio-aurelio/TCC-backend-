@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import requests
 import re
@@ -20,7 +20,7 @@ from compostos_especiais import COMPOSTOS_ESPECIAIS, FORMULAS_GRANDES
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
-# Cache em memória (simplificado para Vercel)
+# Cache em memória
 class Cache:
     def __init__(self, timeout_seconds=3600):
         self.data = {}
@@ -43,27 +43,17 @@ cache_store = Cache(timeout_seconds=3600)
 # TRADUTOR QUÍMICO
 # ============================================
 class TradutorQuimico:
-    """Tradutor de nomes químicos português -> inglês"""
-    
     @staticmethod
     def traduzir(nome):
-        """Traduz nome químico do português para inglês"""
-        nome_original = nome
         nome_lower = nome.lower().strip()
         nome_sem_acento = unidecode(nome_lower)
         
-        # Verifica no dicionário primeiro
         if nome_lower in DICIONARIO_QUIMICO:
-            traducao = DICIONARIO_QUIMICO[nome_lower]
-            print(f"   📖 Traduzido (dicionário): {nome_original} -> {traducao}")
-            return traducao
+            return DICIONARIO_QUIMICO[nome_lower]
         
         if nome_sem_acento in DICIONARIO_QUIMICO:
-            traducao = DICIONARIO_QUIMICO[nome_sem_acento]
-            print(f"   📖 Traduzido (dicionário c/ acento): {nome_original} -> {traducao}")
-            return traducao
+            return DICIONARIO_QUIMICO[nome_sem_acento]
         
-        # Tradução palavra por palavra
         palavras = nome_lower.split()
         palavras_traduzidas = []
         for palavra in palavras:
@@ -75,10 +65,8 @@ class TradutorQuimico:
         if palavras_traduzidas:
             traducao = ' '.join(palavras_traduzidas)
             if traducao != nome_lower:
-                print(f"   📖 Traduzido (composição): {nome_original} -> {traducao}")
                 return traducao
         
-        # Fallback: Google Translate (opcional, pode causar timeout)
         try:
             url = "https://translate.googleapis.com/translate_a/single"
             params = {
@@ -91,15 +79,11 @@ class TradutorQuimico:
             response = requests.get(url, params=params, timeout=2)
             if response.status_code == 200:
                 data = response.json()
-                traducao = data[0][0][0]
-                if traducao:
-                    print(f"   🌐 Traduzido (Google): {nome_original} -> {traducao}")
-                    return traducao
-        except Exception as e:
-            print(f"   ⚠️ Erro Google Translate: {e}")
+                return data[0][0][0]
+        except:
+            pass
         
-        return nome_original
-
+        return nome
 
 # ============================================
 # DETECTOR DE TIPO
@@ -124,7 +108,6 @@ class DetectorTipoBusca:
         else:
             return 'DESCONHECIDO'
 
-
 # ============================================
 # API PUBCHEM
 # ============================================
@@ -135,16 +118,14 @@ class PubChemAPI:
         url_cid = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/fastformula/{quote(formula)}/cids/txt"
         
         try:
-            print(f"   🔍 Buscando fórmula: {formula}")
             response = requests.get(url_cid, timeout=8)
             if response.status_code == 200:
                 lines = response.text.strip().split('\n')
                 if lines and lines[0].isdigit():
                     cid = lines[0]
-                    print(f"   ✅ Encontrado CID: {cid}")
                     return PubChemAPI.buscar_por_cid(cid)
-        except Exception as e:
-            print(f"   ❌ Erro: {e}")
+        except:
+            pass
         return None
     
     @staticmethod
@@ -164,14 +145,11 @@ class PubChemAPI:
             
             try:
                 url_cid = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/{quote(variacao)}/cids/txt"
-                print(f"   🔍 Tentando nome: {variacao}")
-                
                 response = requests.get(url_cid, timeout=8)
                 if response.status_code == 200:
                     lines = response.text.strip().split('\n')
                     if lines and lines[0].isdigit():
                         cid = lines[0]
-                        print(f"   ✅ Encontrado CID: {cid}")
                         return PubChemAPI.buscar_por_cid(cid)
             except:
                 continue
@@ -183,20 +161,16 @@ class PubChemAPI:
         url_sdf = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/{cid}/SDF?record_type=3d"
         
         try:
-            print(f"   🔍 Buscando CID: {cid}")
             response = requests.get(url_sdf, headers={'Accept': 'chemical/x-mdl-sdfile'}, timeout=10)
             if response.status_code == 200:
-                print(f"   ✅ SDF encontrado")
                 return PubChemAPI.parse_sdf(response.text)
-        except Exception as e:
-            print(f"   ❌ Erro: {e}")
+        except:
+            pass
         
-        # Tenta 2D
         try:
             url_sdf_2d = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/{cid}/SDF"
             response = requests.get(url_sdf_2d, headers={'Accept': 'chemical/x-mdl-sdfile'}, timeout=10)
             if response.status_code == 200:
-                print(f"   ✅ SDF 2D encontrado")
                 return PubChemAPI.parse_sdf(response.text)
         except:
             pass
@@ -209,39 +183,27 @@ class PubChemAPI:
         
         cached = cache_store.get(query)
         if cached:
-            print(f"⚡ Cache hit: {query}")
             return cached
-        
-        print(f"\n🔍 Buscando: {query}")
-        tipo = DetectorTipoBusca.detectar_tipo(query)
-        print(f"📊 Tipo: {tipo}")
         
         resultado = None
         
-        # Caso especial: composto especial
         query_lower = query.lower()
         if query_lower in COMPOSTOS_ESPECIAIS:
             dados = COMPOSTOS_ESPECIAIS[query_lower]
-            print(f"   🎯 Composto especial: {dados['nome']} (CID: {dados['cid']})")
             resultado = PubChemAPI.buscar_por_cid(dados['cid'])
             if resultado:
                 cache_store.set(query, resultado)
                 return resultado
         
-        # Busca por nome (com tradução)
-        print("📝 Buscando por nome...")
         resultado = PubChemAPI.buscar_por_nome(query)
         if resultado:
             cache_store.set(query, resultado)
             return resultado
         
-        # Busca por fórmula
-        if tipo in ['FORMULA_SIMPLES', 'FORMULA_COMPLEXA']:
-            print("📝 Buscando por fórmula...")
-            resultado = PubChemAPI.buscar_por_formula(query)
-            if resultado:
-                cache_store.set(query, resultado)
-                return resultado
+        resultado = PubChemAPI.buscar_por_formula(query)
+        if resultado:
+            cache_store.set(query, resultado)
+            return resultado
         
         return None
     
@@ -327,13 +289,18 @@ class PubChemAPI:
                     bonds.append({'atom1': i, 'atom2': j, 'type': 1})
         return bonds
 
-
 # ============================================
 # ROTAS DA API
 # ============================================
+
+# ROTA PRINCIPAL - SERVE O HTML
+@app.route('/')
+def serve_index():
+    return send_from_directory(os.path.dirname(__file__), 'index.html')
+
 @app.route('/api/test', methods=['GET'])
 def test():
-    return jsonify({'status': 'ok', 'message': 'API Química com Dicionário Expandido!'})
+    return jsonify({'status': 'ok', 'message': 'API Química na Vercel!'})
 
 @app.route('/api/molecule/<path:query>', methods=['GET'])
 def get_molecule(query):
@@ -354,12 +321,7 @@ def get_molecule(query):
     else:
         return jsonify({
             'success': False,
-            'error': f'Não foi possível encontrar: "{query}"',
-            'sugestoes': [
-                'Tente o nome em inglês',
-                'Tente a fórmula química',
-                'Verifique a ortografia'
-            ]
+            'error': f'Não foi possível encontrar: "{query}"'
         }), 404
 
 @app.route('/api/traduzir/<path:texto>', methods=['GET'])
@@ -367,28 +329,11 @@ def test_traducao(texto):
     traduzido = TradutorQuimico.traduzir(texto)
     return jsonify({'original': texto, 'traduzido': traduzido})
 
-@app.route('/api/dicionario', methods=['GET'])
-def listar_dicionario():
-    # Limitar a resposta para não exceder tamanho na Vercel
-    traducoes_limitadas = dict(list(DICIONARIO_QUIMICO.items())[:100])
-    return jsonify({
-        'total_palavras': len(DICIONARIO_QUIMICO),
-        'traducoes': traducoes_limitadas
-    })
-
 @app.route('/api/compostos', methods=['GET'])
 def listar_compostos_especiais():
     return jsonify({
         'total': len(COMPOSTOS_ESPECIAIS),
-        'compostos': [
-            {
-                'nome': dados['nome'],
-                'cid': dados['cid'],
-                'tipo': dados.get('tipo', 'desconhecido'),
-                'descricao': dados.get('descricao', '')
-            }
-            for dados in list(COMPOSTOS_ESPECIAIS.values())[:50]  # Limitar para Vercel
-        ]
+        'compostos': list(COMPOSTOS_ESPECIAIS.keys())
     })
 
 @app.route('/api/cid/<int:cid>', methods=['GET'])
@@ -398,9 +343,8 @@ def get_by_cid(cid):
         return jsonify({'success': True, 'data': resultado})
     return jsonify({'success': False, 'error': f'CID {cid} não encontrado'}), 404
 
-# Handler para Vercel - ESSENCIAL!
+# Handler para Vercel
 app = app
 
-# Para desenvolvimento local
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True)
