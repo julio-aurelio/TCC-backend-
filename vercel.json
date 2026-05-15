@@ -2,14 +2,17 @@
   "version": 2,
   "builds": [
     {
-      "src": "api/molecule.py",
-      "use": "@vercel/python"
+      "src": "api/index.py",
+      "use": "@vercel/python",
+      "config": {
+        "maxDuration": 10
+      }
     }
   ],
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "/api/molecule.py"
+      "dest": "/api/index.py"
     },
     {
       "src": "/(.*)",

@@ -667,7 +667,7 @@
         // Testar conexão
         async function testBackend() {
             try {
-                const response = await fetch('http://localhost:5000/api/test');
+                const response = await fetch('/api/test');
                 const data = await response.json();
                 console.log("🔌 Backend conectado:", data);
                 document.getElementById('status').innerHTML = `
